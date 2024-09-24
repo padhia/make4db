@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "make4db"
+authors = [
+    {name = "Paresh Adhia", email = "padhia+github@gmail.com"},
+]
+description = "GNU Make like tool for database scripts"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = ["Programming Language :: Python :: 3"]
+dependencies = [ "sqlparse", "yappt" ]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+snowflake = ["make4db-snowflake"]
+postgres = ["make4db-postgres"]
+duckdb = ["make4db-duckdb" ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+m4db = "make4db.make:cli"
+m4db-refs = "make4db.refs:cli"
+m4db-cache = "make4db.cache:cli"
+m4db-gc = "make4db.gc:cli"
+
+[tool.setuptools.dynamic]
+version = {attr = "make4db.util.__version__"}
+
+[tool.ruff]
+target-version = "py311"
+line-length = 130
+lint.extend-select = ["I"]
+
+[tool.pytest.ini_options]
+pythonpath = [ "src" ]
+filterwarnings = [ "ignore" ]
