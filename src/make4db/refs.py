@@ -120,7 +120,7 @@ def getargs() -> dict[str, Any]:
     x.add_argument("--rm", action="store_const", dest="cmd", const=Cmd.DEL, help="remove dependencies (usage: <target> <dep>...)")
     if dbp.supports_feature(Feature.AutoRefresh):
         x.add_argument("--refresh", action="store_const", dest="cmd", const=Cmd.REFRESH, help="refresh references (dependencies)")
-        x.add_argument("--diff", action="store_const", dest="cmd", help="do not refresh dependencies, but show only the changes")
+        x.add_argument("--diff", action="store_const", dest="cmd", const=Cmd.DIFF, help="do not refresh dependencies, but show only the changes")
 
     parser.add_argument(
         "--all",

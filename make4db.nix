@@ -10,7 +10,7 @@
 }:
 buildPythonPackage {
   pname = "make4db";
-  version = "0.1.0";
+  version = "0.1.1";
   pyproject = true;
   src = ./.;
 

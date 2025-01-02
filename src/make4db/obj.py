@@ -115,17 +115,20 @@ class DdlObj:
 
         try:
             deps_text = self.deps_path.read_text()
-            return list(uniq(d for x in deps_text.splitlines() if (d := dep_obj(x)) is not None))
+            return sorted(uniq(d for x in deps_text.splitlines() if (d := dep_obj(x)) is not None))
         except FileNotFoundError:
             return list()
 
     @property
     def rdeps(self) -> list[Self]:
         "reverse dependencies (downstream objects)"
-        return list(uniq(x for x in self.all() if self in x.deps))
+        return sorted(uniq(x for x in self.all() if self in x.deps))
 
     def update_deps(self, deps: set[Self]) -> None:
-        self.write(self.deps_path, (str(x) for x in sorted(deps)))
+        if deps:
+            self.write(self.deps_path, (str(x) for x in sorted(deps)))
+        else:
+            self.deps_path.unlink(missing_ok=True)
 
     def __hash__(self) -> int:
         return hash((self.sch, self.name))

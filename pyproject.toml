@@ -27,6 +27,7 @@ m4db = "make4db.make:cli"
 m4db-refs = "make4db.refs:cli"
 m4db-cache = "make4db.cache:cli"
 m4db-gc = "make4db.gc:cli"
+m4db-dbclean = "make4db.dbclean:cli"
 
 [tool.setuptools.dynamic]
 version = {attr = "make4db.util.__version__"}

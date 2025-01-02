@@ -38,7 +38,7 @@ class Runner:
             ready_objs = ts.get_ready()
             if not ready_objs:
                 break
-            for o in ready_objs:
+            for o in sorted(ready_objs):
                 if o in self.targets:
                     if build(o):
                         ts.done(o)

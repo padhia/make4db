@@ -35,6 +35,9 @@ class DummyAccess(DbAccess):
     def iterdep(self, objs: Iterable[SchObj]) -> Iterable[tuple[SchObj, SchObj]]:
         raise NotImplementedError("Dummy Database Access provider has no implementation")
 
+    def drop_except(self, objs: set[SchObj]) -> Iterable[str]:
+        raise NotImplementedError("Dummy Database Access provider has no implementation")
+
 
 @dataclass
 class DummyProvider(DbProvider):

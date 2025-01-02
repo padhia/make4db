@@ -62,10 +62,10 @@ def run(
         return 0
 
     if dry_run is not None:
-        return print_plan(dry_run=dry_run, runner=runner, dbp=dbp, replace=replace, is_touch=action is Action.Touch, **conn_args)
+        return print_plan(dry_run=dry_run, runner=runner, dbp=dbp, replace=replace, do_touch=action is Action.Touch, **conn_args)
 
     if action is Action.Touch:
-        return runner.run(with_tracker(with_true(lambda o: print(f"touch '{o.tracking_path}'"))))
+        return runner.run(with_tracker(print_touched))
 
     with dbp.dbacc(conn_args) as dba:
         fn = with_obj_runner(dba, replace)
@@ -74,34 +74,39 @@ def run(
         return runner.run(fn)
 
 
-def print_plan(dry_run: DryRun, runner: Runner, dbp: DbProvider, replace: bool, is_touch: bool, **conn_args: Any) -> int:
+def print_plan(dry_run: DryRun, runner: Runner, dbp: DbProvider, replace: bool, do_touch: bool, **conn_args: Any) -> int:
+    def print_obj_name(o: Obj) -> bool:
+        print(str(o))
+        return True
+
     match dry_run:
         case DryRun.Name:
-            return runner.run(with_true(lambda o: print(f"touch '{o.tracking_path}'" if is_touch else str(o))))
+            return runner.run(print_touched if do_touch else print_obj_name)
 
         case DryRun.Tree:
-            for o in only_roots(runner.targets, lambda o: o.rdeps):
-                for trunk, x in treeiter(o, lambda x: x.deps, width=1):
-                    print(trunk + (f"\033[91m{x}\033[0m" if x in runner.targets else str(x)))
+            for o in only_roots(runner.targets, lambda o: o.deps):
+                for trunk, x in treeiter(o, lambda x: x.rdeps, width=1):
+                    print(f"{trunk}{x}")
             return 0
 
         case DryRun.Ddl:
             with dbp.dbacc(conn_args) as dba:
 
-                def print_obj_sqls(o: Obj) -> None:
-                    for sql in itersql(dba, replace, o):
-                        if sql is not None:
+                def print_obj_sqls(obj: Obj) -> bool:
+                    try:
+                        for sql in itersql(dba, replace, obj):
                             print(sql + "\n;")
+                        return True
+                    except Exception as err:
+                        logger.error(f"SQL generation failed for '{obj}', error: {err}")
+                        return False
 
-                return runner.run(with_true(print_obj_sqls))
+                return runner.run(print_obj_sqls)
 
 
-def with_true(fn: Callable[[Obj], None]) -> Callable[[Obj], bool]:
-    def wrapped(obj: Obj) -> bool:
-        fn(obj)
-        return True
-
-    return wrapped
+def print_touched(obj: Obj) -> bool:
+    print(f"touch '{obj.tracking_path}'")
+    return True
 
 
 def with_obj_runner(dba: DbAccess, replace: bool) -> Callable[[Obj, TextIO], bool]:
@@ -119,7 +124,13 @@ def with_obj_runner(dba: DbAccess, replace: bool) -> Callable[[Obj, TextIO], boo
             return False
 
     def fn_(obj: Obj, output: TextIO) -> bool:
-        return all(execsql(s, output) if s is not None else False for s in itersql(dba, replace, obj))
+        try:
+            sqls = list(itersql(dba, replace, obj))
+        except Exception as err:
+            logger.error(f"SQL generation failed for '{obj}', error: {err}")
+            return False
+
+        return all(execsql(s, output) for s in sqls)
 
     return fn_
 

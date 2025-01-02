@@ -63,7 +63,9 @@ class PyScript:
 
 def _load_from_sql(script: Path, replace: bool) -> Iterable[str]:
     def create_or_replace(ddl: str) -> str:
-        new_ddl = re.sub("\\bcreate\\b(?!\\s+or\\s+replace\\b)", "create or replace", ddl, count=1, flags=re.IGNORECASE)
+        if re.search("\\bcreate\\s+or\\s+replace\\b", ddl, flags=re.IGNORECASE) is not None:
+            return ddl
+        new_ddl = re.sub("\\bcreate(\\s+or\\s+alter\\b)?", "create or replace", ddl, count=1, flags=re.IGNORECASE)
         if new_ddl != ddl:
             logger.info("'create' in '%s' overridden with 'create or replace'", Path)
         return new_ddl
@@ -75,7 +77,7 @@ def _load_from_sql(script: Path, replace: bool) -> Iterable[str]:
     yield from (ddl_upd(sql) for sql in split_sqls(script.read_text(), strip_semicolon=True) if sql.strip() != "")
 
 
-def itersql(dba: DbAccess, replace: bool, obj: DdlObj) -> Iterable[str | None]:
+def itersql(dba: DbAccess, replace: bool, obj: DdlObj) -> Iterable[str]:
     if obj.is_python:
         py = PyScript(obj.ddl_path)
         sqls = dba.py2sql(py.fn, py.obj_name, replace) if py.is_dba_fn else py.fn(py.obj_name, replace)
