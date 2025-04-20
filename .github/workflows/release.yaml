@@ -1,0 +1,38 @@
+name: create a new release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    permissions:
+      contents: write
+      
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: build distribution
+        run: |
+          python -m pip install setuptools build wheel
+          python -m build
+
+      - name: create github release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes ""
+
+      - name: upload artifict to github release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/** --repo "$GITHUB_REPOSITORY"

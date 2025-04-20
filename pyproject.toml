@@ -11,13 +11,17 @@ description = "GNU Make like tool for database scripts"
 readme = "README.md"
 requires-python = ">=3.11"
 classifiers = ["Programming Language :: Python :: 3"]
-dependencies = [ "sqlparse", "yappt" ]
+dependencies = [
+    "sqlparse",
+    "yappt",
+    "make4db-api",
+]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 snowflake = ["make4db-snowflake"]
 postgres = ["make4db-postgres"]
-duckdb = ["make4db-duckdb" ]
+duckdb = ["make4db-duckdb"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

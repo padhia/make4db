@@ -16,7 +16,7 @@ PY_DDL_EXT = ".py"
 DEPS_EXT = ".deps"
 HASH_EXT = ".hash"
 SALT_EXT = ".salt"
-META_SUBDIR = ".meta"
+META_SUBDIR = ".m4db"
 
 logger = getLogger(__name__)
 _salt = int(datetime.today().timestamp()).to_bytes(16)

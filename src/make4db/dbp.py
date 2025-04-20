@@ -6,9 +6,9 @@ import logging
 import os
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from typing import Any, Iterable, Self, TextIO
+from typing import Any, Callable, Iterable, Self, TextIO
 
-from make4db.provider import DbAccess, DbProvider, Feature, PySqlFn, SchObj
+from make4db.provider import DDL, DbAccess, DbProvider, Feature, SchObj
 
 logger = logging.getLogger(__name__)
 KNOWN_PROVIDERS = ["make4db-snowflake", "make4db-duckdb", "make4db-postgres"]
@@ -26,8 +26,12 @@ class DummyAccess(DbAccess):
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         pass
 
-    def py2sql(self, fn: PySqlFn, object: str, replace: bool) -> Iterable[str]:
-        yield from fn(self.conn, object, replace)
+    def py2sql(self, fn: Callable[[Any, str, bool], DDL], object: str, replace: bool) -> Iterable[str]:
+        ddl = fn(self.conn, object, replace)
+        if isinstance(ddl, str):
+            yield ddl
+        else:
+            yield from ddl
 
     def execsql(self, sql: str, output: TextIO) -> None:
         pass
