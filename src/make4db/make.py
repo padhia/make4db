@@ -3,7 +3,7 @@
 import logging
 import sys
 from argparse import ArgumentParser
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Callable, TextIO
 
@@ -21,16 +21,17 @@ from .util import __version__, init_logging, only_roots
 logger = logging.getLogger(__name__)
 
 
-class Action(str, Enum):
+class Action(StrEnum):
     Build = "build"
     Rebuild = "rebuild"
     Touch = "touch"
 
 
-class DryRun(str, Enum):
+class DryRun(StrEnum):
     Name = "name"
     Ddl = "ddl"
     Tree = "tree"
+    Quiet = "quiet"
 
 
 @accept_objs
@@ -57,12 +58,12 @@ def run(
     else:
         runner = Runner(_objs)
 
+    if dry_run is not None:
+        return print_plan(dry_run=dry_run, runner=runner, dbp=dbp, replace=replace, do_touch=action is Action.Touch, **conn_args)
+
     if not runner.affected_objs:
         print("Nothing to make")
         return 0
-
-    if dry_run is not None:
-        return print_plan(dry_run=dry_run, runner=runner, dbp=dbp, replace=replace, do_touch=action is Action.Touch, **conn_args)
 
     if action is Action.Touch:
         return runner.run(with_tracker(print_touched))
@@ -80,6 +81,9 @@ def print_plan(dry_run: DryRun, runner: Runner, dbp: DbProvider, replace: bool, 
         return True
 
     match dry_run:
+        case DryRun.Quiet:
+            return 2 if runner.affected_objs else 0
+
         case DryRun.Name:
             return runner.run(print_touched if do_touch else print_obj_name)
 
@@ -178,7 +182,7 @@ def getargs() -> dict[str, Any]:
         const=DryRun.Name,
         type=DryRun,
         choices=[x.value for x in DryRun],
-        help="Only print, but not run, affected objects/DDLs/tree",
+        help="do not run; if 'quiet' and there are objects that need building exit with RC=2; else print affected objects/DDLs/tree",
     )
 
     x = parser.add_mutually_exclusive_group()

@@ -4,7 +4,7 @@ import logging
 from typing import Callable, Iterable, TypeVar
 
 T = TypeVar("T")
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 
 def only_roots(objs: set[T], parents: Callable[[T], Iterable[T]]) -> Iterable[T]:
