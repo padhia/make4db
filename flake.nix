@@ -78,7 +78,7 @@
       ];
       make4db-duckdb = final.python3.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.duckdb);
       make4db-postgres = final.python3.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.postgres);
-      make4db-snowflake = final.python3.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.snowflake);
+      make4db-snowflake = final.python312.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.snowflake);
     };
 
     overlays.default = composeManyExtensions [
