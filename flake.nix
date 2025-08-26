@@ -55,7 +55,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, yappt, make4db-api, make4db-duckdb, make4db-postgres, make4db-snowflake, sfconn, ... }:
+  outputs = { self, nixpkgs, flake-utils, yappt, make4db-api, make4db-duckdb, make4db-postgres, make4db-snowflake, ... }:
   let
     inherit (nixpkgs.lib) composeManyExtensions;
 
@@ -69,7 +69,7 @@
         ];
         make4db-duckdb = final.python3.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.duckdb);
         make4db-postgres = final.python3.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.postgres);
-        make4db-snowflake = final.python312.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.snowflake);
+        make4db-snowflake = final.python313.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.snowflake);
       };
     in composeManyExtensions [
       make4db-api.overlays.default
