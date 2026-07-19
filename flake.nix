@@ -55,64 +55,85 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, yappt, make4db-api, make4db-duckdb, make4db-postgres, make4db-snowflake, ... }:
-  let
-    inherit (nixpkgs.lib) composeManyExtensions;
-
-    overlays.default =
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      yappt,
+      make4db-api,
+      make4db-duckdb,
+      make4db-postgres,
+      make4db-snowflake,
+      ...
+    }:
     let
-      pkgOverlay = final: prev: {
-        pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-          (py-final: py-prev: {
-            make4db = py-final.callPackage ./make4db.nix {};
-          })
+      inherit (nixpkgs.lib) composeManyExtensions;
+
+      overlays.default =
+        let
+          pkgOverlay = final: prev: {
+            pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+              (py-final: py-prev: {
+                make4db = py-final.callPackage ./make4db.nix { };
+              })
+            ];
+            make4db-duckdb = final.python3.withPackages (
+              ps: with ps; [ make4db ] ++ make4db.optional-dependencies.duckdb
+            );
+            make4db-postgres = final.python3.withPackages (
+              ps: with ps; [ make4db ] ++ make4db.optional-dependencies.postgres
+            );
+            make4db-snowflake = final.python3.withPackages (
+              ps: with ps; [ make4db ] ++ make4db.optional-dependencies.snowflake
+            );
+          };
+        in
+        composeManyExtensions [
+          make4db-api.overlays.default
+          make4db-duckdb.overlays.default
+          make4db-postgres.overlays.default
+          make4db-snowflake.overlays.default
+          yappt.overlays.default
+          pkgOverlay
         ];
-        make4db-duckdb = final.python3.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.duckdb);
-        make4db-postgres = final.python3.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.postgres);
-        make4db-snowflake = final.python313.withPackages(ps: with ps; [make4db] ++ make4db.optional-dependencies.snowflake);
-      };
-    in composeManyExtensions [
-      make4db-api.overlays.default
-      make4db-duckdb.overlays.default
-      make4db-postgres.overlays.default
-      make4db-snowflake.overlays.default
-      yappt.overlays.default
-      pkgOverlay
-    ];
 
-    eachSystem = system:
-    let
-      pkgs = import nixpkgs {
-        inherit system;
-        config.allowUnfree = true;
-        overlays = [ self.overlays.default ];
-      };
+      eachSystem =
+        system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+            overlays = [ self.overlays.default ];
+          };
 
-      pyPkgs = pkgs.python312Packages;
+          pyPkgs = pkgs.python3Packages;
 
-    in {
-      devShells.default = pkgs.mkShell {
-        name = "m4db";
-        venvDir = "./.venv";
-        buildInputs = [
-          pkgs.ruff
-          pkgs.uv
-          pyPkgs.python
-          pyPkgs.venvShellHook
-          pyPkgs.pytest
-          pyPkgs.sqlparse
-          pyPkgs.make4db-api
-          pyPkgs.yappt
-        ];
-      };
+        in
+        {
+          devShells.default = pkgs.mkShell {
+            name = "m4db";
+            venvDir = "./.venv";
+            buildInputs = [
+              pkgs.ruff
+              pkgs.uv
+              pyPkgs.python
+              pyPkgs.venvShellHook
+              pyPkgs.pytest
+              pyPkgs.sqlparse
+              pyPkgs.make4db-api
+              pyPkgs.yappt
+            ];
+          };
 
-      packages = {
-        inherit (pkgs) make4db-duckdb make4db-postgres make4db-snowflake;
-      };
+          packages = {
+            inherit (pkgs) make4db-duckdb make4db-postgres make4db-snowflake;
+          };
+        };
+
+    in
+    {
+      inherit overlays;
+      inherit (flake-utils.lib.eachDefaultSystem eachSystem) devShells packages;
     };
-
-  in {
-    inherit overlays;
-    inherit (flake-utils.lib.eachDefaultSystem eachSystem) devShells packages;
-  };
 }

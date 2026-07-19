@@ -10,9 +10,8 @@ from inspect import signature
 from pathlib import Path
 from typing import Any, Callable, Iterable, Literal, cast
 
-from sqlparse import split as split_sqls  # type: ignore
-
 from make4db.provider import DDL, DbAccess, PySqlFn
+from sqlparse import split as split_sqls  # type: ignore
 
 from .obj import DdlObj
 

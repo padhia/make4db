@@ -7,9 +7,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Callable, TextIO
 
-from yappt import treeiter
-
 from make4db.provider import DbAccess, DbProvider
+from yappt import treeiter
 
 from .args import accept_objs, add_args, existing_dir
 from .dbp import dbp

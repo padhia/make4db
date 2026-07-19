@@ -6,9 +6,8 @@ from enum import StrEnum, auto
 from pathlib import Path
 from typing import Any, TypeAlias
 
-from yappt import treeiter
-
 from make4db.provider import Feature, SchObj
+from yappt import treeiter
 
 from .args import accept_objs, add_args
 from .dbp import dbp
@@ -120,7 +119,13 @@ def getargs() -> dict[str, Any]:
     x.add_argument("--rm", action="store_const", dest="cmd", const=Cmd.DEL, help="remove dependencies (usage: <target> <dep>...)")
     if dbp.supports_feature(Feature.AutoRefresh):
         x.add_argument("--refresh", action="store_const", dest="cmd", const=Cmd.REFRESH, help="refresh references (dependencies)")
-        x.add_argument("--diff", action="store_const", dest="cmd", const=Cmd.DIFF, help="do not refresh dependencies, but show only the changes")
+        x.add_argument(
+            "--diff",
+            action="store_const",
+            dest="cmd",
+            const=Cmd.DIFF,
+            help="do not refresh dependencies, but show only the changes",
+        )
 
     parser.add_argument(
         "--all",

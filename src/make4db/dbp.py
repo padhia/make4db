@@ -6,7 +6,7 @@ import logging
 import os
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Self, TextIO
+from typing import Any, Callable, Iterable, Self, TextIO, override
 
 from make4db.provider import DDL, DbAccess, DbProvider, Feature, SchObj
 
@@ -20,12 +20,15 @@ class DummyAccess(DbAccess):
     def conn(self) -> None:
         raise NotImplementedError("Dummy Database Access provider has no implementation")
 
+    @override
     def __enter__(self) -> Self:
         return self
 
+    @override
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         pass
 
+    @override
     def py2sql(self, fn: Callable[[Any, str, bool], DDL], object: str, replace: bool) -> Iterable[str]:
         ddl = fn(self.conn, object, replace)
         if isinstance(ddl, str):
@@ -33,30 +36,38 @@ class DummyAccess(DbAccess):
         else:
             yield from ddl
 
+    @override
     def execsql(self, sql: str, output: TextIO) -> None:
         pass
 
+    @override
     def iterdep(self, objs: Iterable[SchObj]) -> Iterable[tuple[SchObj, SchObj]]:
         raise NotImplementedError("Dummy Database Access provider has no implementation")
 
+    @override
     def drop_except(self, objs: set[SchObj]) -> Iterable[str]:
         raise NotImplementedError("Dummy Database Access provider has no implementation")
 
 
 @dataclass
 class DummyProvider(DbProvider):
+    @override
     def dbacc(self, conn_args: dict[str, Any]) -> DummyAccess:
         raise NotImplementedError("Dummy Database Access provider has no implementation")
 
+    @override
     def add_db_args(self, parser: ArgumentParser) -> None:
         pass
 
+    @override
     def version(self) -> str:
         return "0.1.0"
 
+    @override
     def name(self) -> str:
         return "dummy"
 
+    @override
     def supports_feature(self, feature: Feature) -> bool:
         return False
 
