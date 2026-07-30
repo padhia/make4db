@@ -5,8 +5,11 @@ from datetime import datetime
 from functools import cached_property
 from hashlib import blake2b, file_digest
 from logging import getLogger
+from os import environ
 from pathlib import Path
 from typing import Any, ClassVar, Iterable, Self
+
+from jinja2 import Environment, FileSystemLoader
 
 from .util import uniq
 
@@ -32,6 +35,7 @@ class DdlObj:
     ddl_dir: ClassVar[Path]
     cache_dir: ClassVar[Path | None] = None
     _all: ClassVar[list[Self] | None] = None
+    _env: ClassVar[Environment | None] = None
 
     sch: str
     name: str
@@ -63,6 +67,21 @@ class DdlObj:
         if self._ddl_path is None:
             raise FileNotFoundError(f"No DDL was found for {self}")
         return self._ddl_path
+
+    @cached_property
+    def _read_ddl(self) -> tuple[str, list[str]]:
+        templ = self.template_env().get_template(str(self.ddl_path.relative_to(self.ddl_dir)))
+        references: list[str] = []
+
+        def add_ref(x: str) -> str:
+            references.append(x)
+            return x
+
+        return (templ.render(this=self, ref=add_ref, env_var=environ), references)
+
+    @property
+    def ddl_text(self) -> str:
+        return self._read_ddl[0]
 
     @property
     def has_ddl(self) -> bool:
@@ -113,11 +132,9 @@ class DdlObj:
 
             return dep
 
-        try:
-            deps_text = self.deps_path.read_text()
-            return sorted(uniq(d for x in deps_text.splitlines() if (d := dep_obj(x)) is not None))
-        except FileNotFoundError:
-            return list()
+        file_deps: list[str] = self.deps_path.read_text().splitlines() if self.deps_path.exists() else []
+
+        return sorted(uniq(d for x in (file_deps + self._read_ddl[1]) if (d := dep_obj(x)) is not None))
 
     @property
     def rdeps(self) -> list[Self]:
@@ -194,6 +211,13 @@ class DdlObj:
             cls._all = list(uniq(cls.from_path(f) for d in ddl_dirs for f in d.iterdir() if is_ddl(f)))
 
         return cls._all
+
+    @classmethod
+    def template_env(cls: type[Self]) -> Environment:
+        if cls._env is None:
+            cls._env = Environment(loader=FileSystemLoader(cls.ddl_dir))
+
+        return cls._env
 
 
 @dataclass(frozen=True, eq=False)

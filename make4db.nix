@@ -6,6 +6,7 @@
   make4db-api,
   sqlparse,
   yappt,
+  jinja2,
 
   pytest,
 
@@ -15,7 +16,7 @@
 }:
 buildPythonPackage {
   pname = "make4db";
-  version = "0.1.3";
+  version = "0.2.0rc1";
   pyproject = true;
   src = ./.;
 
@@ -23,6 +24,7 @@ buildPythonPackage {
     sqlparse
     make4db-api
     yappt
+    jinja2
   ];
   build-system = [ setuptools ];
   nativeCheckInputs = [ pytest ];

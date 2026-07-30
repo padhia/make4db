@@ -70,7 +70,7 @@ class PyScript:
         return f"{self.path.parent.name}.{self.path.stem}"
 
 
-def _load_from_sql(script: Path, replace: bool) -> Iterable[str]:
+def _load_from_sql(obj: DdlObj, replace: bool) -> Iterable[str]:
     def create_or_replace(ddl: str) -> str:
         if re.search("\\bcreate\\s+or\\s+replace\\b", ddl, flags=re.IGNORECASE) is not None:
             return ddl
@@ -83,7 +83,7 @@ def _load_from_sql(script: Path, replace: bool) -> Iterable[str]:
         return x
 
     ddl_upd = create_or_replace if replace else identity
-    yield from (ddl_upd(_clean_sql(sql)) for sql in split_sqls(script.read_text(), strip_semicolon=True) if sql.strip() != "")
+    yield from (ddl_upd(_clean_sql(sql)) for sql in split_sqls(obj.ddl_text, strip_semicolon=True) if sql.strip() != "")
 
 
 def itersql(dba: DbAccess, replace: bool, obj: DdlObj) -> Iterable[str]:
@@ -98,4 +98,4 @@ def itersql(dba: DbAccess, replace: bool, obj: DdlObj) -> Iterable[str]:
             else:
                 yield from (_clean_sql(sql) for sql in ddl)
     else:
-        yield from _load_from_sql(obj.ddl_path, replace)
+        yield from _load_from_sql(obj, replace)

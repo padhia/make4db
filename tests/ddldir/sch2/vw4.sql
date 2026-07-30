@@ -1,4 +1,4 @@
-create or replace view sch2.vw4 as
+create or replace view {{ this }} as
 select *
-from sch2.tb3
-join sch1.vw3 using (c1);
+from {{ ref("sch2.tb3") }}
+join {{ ref("sch1.vw3") }} using (c1);

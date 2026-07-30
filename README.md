@@ -2,183 +2,152 @@
 
 `make`-like tool for databases.
 
-Like the traditional `make` tool, **make4db** builds only outdated database scripts (typically DDLs), and any dependent database scripts in the dependency order. For example, when a table DDL is modified, first its DDL is run, and then the DDLs of referencing views are run, and then any views that reference the first-level views are rerun, and so on until all dependencies have been updated.
+Like the traditional `make` tool, **make4db** builds only outdated database scripts (typically DDLs), and any dependent database scripts in the dependency order. For example, when a table DDL is modified, its DDL is rerun first, then the DDLs of referencing views are rerun, and then any views that reference those views are rerun, and so on until all dependencies have been updated.
 
 One key difference between the traditional `make` tool and `make4db` is that `make4db` relies on cryptographic hashes to detect changes instead of file timestamps.
 
 ## Features
-- build all changed and their dependent objects in the dependency order (`make`)
-- build only specific objects and their references (if changed) in the dependency order (`make <target>`)
-- touch mode -- mark objects as built, without running SQLs (`make -t`)
-- preview mode -- only show objects that would be executed (`make -n`)
-- rebuild unconditionally (`make -B`)
-- when supported by the DBMS, help obtain object dependencies
-- In case of a failure, keep building scripts that are not dependent on the failing scripts (`make -k`)
+
+- Build all changed objects and their dependents in dependency order
+- Build only specific objects and their dependents (if changed) in dependency order
+- **Touch mode** — mark objects as built without running SQL (`-t`)
+- **Preview mode** — show what would be executed without running anything (`-n`)
+    - `name` (default): print object names
+    - `ddl`: print the SQL that would be executed
+    - `tree`: print dependency tree
+    - `quiet`: exit with code 2 if any objects need building, 0 otherwise (useful in CI pipelines)
+- **Replace mode** — rewrite `CREATE` as `CREATE OR REPLACE` in `.sql` files (`-R`)
+- Rebuild unconditionally (`-B`)
+- Automatically determine object dependencies for supported databases
+- Keep building unaffected objects when a dependency fails (`-k`)
 
 ## Installation
 
-Use `pip` (`pipx` recommended) for installation. In addition to the `make4db` package, a database-provider package for `m4db` must be installed. Available database-provider packages:
+Use `pip` (`uv` or `pix` recommended) for installation. In addition to `make4db`, install a database-provider package:
 
-1. `make4db-duckdb`
-1. `make4db-postgres`
-1. `make4db-snowflake`
+| Package             | Database   |
+| ------------------- | ---------- |
+| `make4db-duckdb`    | DuckDB     |
+| `make4db-postgres`  | PostgreSQL |
+| `make4db-snowflake` | Snowflake  |
 
 ## Usage
 
-The main executable is `m4db`, which builds any changed DDLs and their dependent objects in the correct order.
+The main executable is `m4db`. It builds any changed DDLs and their dependent objects in dependency order.
 
-Use `m4db --help` to list all available options. Some of the important options are listed below:
+```
+m4db [options] [<FILE>|<OBJ> ...]
+```
 
-- `--ddl-dir`: root directory containing all DDLs. It is recommended to use a VCS such as git to store DDLs
-- `--tracking-dir`: a directory to store DDL execution status. Although execution status is considered persistent information, this directory is not typically version-controlled. There might be different tracking directories that represent different environments, such as `dev`, `prod`, etc.
-- `--out-dir`: directory to DDL execution logs
+When one or more object references are given, only those objects (and their dependents, if changed) are built. Without arguments, all changed objects are processed.
+
+Run `m4db --help` for a full option listing. Key options:
+
+| Option                     | Description                                                             |
+| -------------------------- | ----------------------------------------------------------------------- |
+| `-S`, `--ddl-dir DIR`      | Root directory containing all DDL files                                 |
+| `-T`, `--tracking-dir DIR` | Directory to store build-status tracking files                          |
+| `-O`, `--out-dir DIR`      | Directory to write per-object execution logs                            |
+| `-n`, `--dry-run [MODE]`   | Preview mode; `MODE` is one of `name` (default), `ddl`, `tree`, `quiet` |
+| `-t`, `--touch`            | Mark objects as built without executing SQL                             |
+| `-B`, `--rebuild`          | Rebuild targets unconditionally                                         |
+| `-R`, `--replace`          | Rewrite `CREATE` as `CREATE OR REPLACE` in SQL files                    |
+
+### Environment variables
+
+The three directory options can be set via environment variables to avoid repeating them on every invocation:
+
+| Variable               | Corresponding option |
+| ---------------------- | -------------------- |
+| `MAKE4DB_DDL_DIR`      | `--ddl-dir`          |
+| `MAKE4DB_TRACKING_DIR` | `--tracking-dir`     |
+| `MAKE4DB_CACHE_DIR`    | `--cache-dir`        |
 
 ### Companion tools
 
-Besides the main tool (`m4db`), the following tools are also available:
-
-- `m4db-refs`: show or manage object dependency hierarchy
-- `m4db-gc`: garbage collect outdated, orphaned files
-- `m4db-dbclean`: allows cleaning up outdated database objects by generating `DROP` statements. Note: only available for some databases
-- `m4db-cache`: allows pre-computing cryptographic hash for large repositories
+| Tool           | Description                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| `m4db-refs`    | Show or manage the object dependency hierarchy                                                  |
+| `m4db-gc`      | Remove orphaned tracking, cache, and log files                                                  |
+| `m4db-dbclean` | Generate `DROP` statements for objects no longer in the DDL directory (selected databases only) |
+| `m4db-cache`   | Pre-compute cryptographic hashes for large repositories                                         |
 
 ## Storing DDLs
-- DDLs are stored as plain text in single-level deep folders.
-- Folder names are used to infer schema names, and file names are used to infer object names. File and folder names are always in lower-case, but converted to upper-case to derive schema and object names
-- File names consist of a base name and extension.
-  - Base name must match the object name (except filename must be all lower-case).
-  - File extension must be either `.sql` or `.py`
-  - File names that start with `.` (period) are ignored, and so are any `.py` files that start with `_`.
-- Files that have a `.sql` extension must contain one or more valid SQL statements.
-- Files that have a `.py` extension must be a top-level Python script and must contain a function named `sql` returning one or more SQL statements as strings. The following are the two valid function signatures.
 
-  ```py
-  def sql(name: str, replace: bool) -> str | Iterable[str]:
-      """Dynamically build and return SQL statement(s)
+- DDLs live in a single-level folder hierarchy: `<ddl-dir>/<schema>/<object>.<ext>`
+- Folder names map to schema names; file stems map to object names. Both are stored in lower-case and converted to upper-case at runtime.
+- Valid extensions are `.sql` and `.py`. Files starting with `.` are ignored; `.py` files starting with `_` are also ignored.
 
-     Args:
-     name: name of the object being created (or replaced). Note: name is qualified with the schema name
-     replace: true if m4db is running in replace mode, that is, --replace option was specified at run-time
+### SQL files (`.sql`)
 
-     Returns:
-     A single SQL statement as `str`; or multiple SQL statements as `Iterable[str]`
-      """
-  ```
-  ```py
-  def sql(session, name: str, replace: bool) -> str | Iterable[str]:
-      """Dynamically build and return SQL statement(s)
+Each `.sql` file contains one or more SQL statements for a single database object. `.sql` files are processed as **Jinja2 templates** before execution, which allows dynamic content without switching to a full Python script.
 
-     Args:
-     session: an active database session (must not be closed)
-     name: name of the object being created (or replaced). note: name is qualified with the schema name
-     replace: true if m4db is running in replace mode, that is, --replace option was specified at run-time
+Available template variables:
 
-     Returns:
-     A single SQL statement as `str`; or multiple SQL statements as `Iterable[str]`
-      """
-  ```
+| Variable          | Type     | Description                                             |
+| ----------------- | -------- | ------------------------------------------------------- |
+| `this`            | object   | The current object; renders as `<schema>.<name>`        |
+| `this.sch`        | string   | Schema name                                             |
+| `this.name`       | string   | Object name                                             |
+| `ref("sch.name")` | function | Renders `sch.name` **and** registers it as a dependency |
+| `env_var`         | mapping  | OS environment variables (e.g. `env_var.MY_VAR`)        |
+
+Example — `sch2/some_table.sql`:
+
+```sql
+create or replace table {{ this }} (
+    db_name  varchar(255) not null default '{{ env_var.TARGET_DB }}',
+    sch_name varchar(255) not null default '{{ this.sch }}',
+    obj_name varchar(255) not null default '{{ this.name }}'
+);
+```
+
+Example — `sch2/some_view.sql`:
+
+```sql
+create or replace view {{ this }} as
+select *
+from {{ ref("sch2.some_table") }}
+join {{ ref("sch1.other_view") }} using (id);
+```
+
+The `ref()` call both renders the object name and automatically records `sch2.some_table` as a dependency of `sch2.some_view`, so the view is rebuilt whenever the table changes.
+
+### Python files (`.py`)
+
+A `.py` file must be a top-level Python module containing a function named `sql`. Two signatures are supported:
+
+```py
+# without database access
+def sql(name: str, replace: bool) -> str | Iterable[str]: ...
+
+# with an active database session
+def sql(session, name: str, replace: bool) -> str | Iterable[str]: ...
+```
+
+Parameters:
+
+- `name` — fully-qualified object name (`schema.object`)
+- `replace` — `True` when `m4db` is run with `--replace`
+- `session` — an active database session provided by the database-provider plugin
+
+The function must return either a single SQL string or an iterable of SQL strings.
+
+When both `.py` and `.sql` files exist for the same object, the `.py` file takes precedence.
+
+### Dependency files
+
+Dependencies are stored in `.m4db/<schema>/<object>.deps` inside the DDL directory. Each line is a `schema.object` reference. These files are managed automatically when using Jinja2 `ref()` calls or `m4db-refs --refresh`; you can also edit them manually.
 
 ## Limitations
-- only manages schema-level objects (does not manage databases, schemas, or permissions)
-- does not manage cross-database objects
-- object dependency management, depending on the database support, is semi-automatic
-- change detection is based on the file content
 
-## Technical details
-- unlike the traditional `make` utility, *make4db* relies on the cryptographic hash to detect changes.
-- *make4db* is database agnostic and requires separate *database provider module* to function
-- *make4db* relies on object references (for example, references of a view being other tables/views) to determine what objects need to be (re)built
-  - object references are stored along with the database scripts in a hidden folder (`.m4db` in the project-level folder)
-  - `m4db-refs` is a helper tool that can, for selected databases, automatically generate object references
-  # make4db
+- Manages schema-level objects only; does not manage databases, schemas, or permissions
+- Does not manage cross-database objects
+- Dependency detection is semi-automatic depending on database support
+- Change detection is based on file content (not runtime schema state)
 
-  `make`-like tool for databases.
+## Technical notes
 
-  Like the traditional `make` tool, **make4db** builds any modified database scripts, DDLs for typical use cases, and dependent database scripts in dependency order. For example, when a table DDL is modified, its DDL is rerun, and then any DDLs of referencing views are rerun, and then any views that reference the first-level views are rerun, and so on.
-
-  One key difference between the traditional `make` tool and `make4db` is that `make4db` relies on cryptographic hashes to detect changes instead of file timestamps.
-
-  ## Features
-  - build all changed and their dependent objects in the dependency order (`make`)
-  - build only specific objects and their references (if changed) in the dependency order (`make <target>`)
-  - touch mode -- mark objects as built, without running SQLs (`make -t`)
-  - preview mode -- only show objects that would be executed (`make -n`)
-  - rebuild unconditionally (`make -B`)
-  - when supported by the DBMS, help obtain object dependencies
-  - In case of a failure, keep building scripts that are not dependent on the failing scripts (`make -k`)
-
-  ## Installation
-
-  Use `pip` (`pipx` recommended) for installation. In addition to the `make4db` package, a database-provider package for `m4db` must be installed. Available database-provider packages:
-
-  1. `make4db-duckdb`
-  1. `make4db-postgres`
-  1. `make4db-snowflake`
-
-  ## Usage
-
-  `m4db` is the primary tool. It is used for building changed DDLs and their dependent objects in the correct order.
-
-  Use `m4db --help` to list all available options. Some of the important options are listed below:
-
-  - `--ddl-dir`: root directory containing all DDLs. It is recommended to use a VCS such as git to store DDLs
-  - `--tracking-dir`: a directory to store DDL execution status. Although execution status is considered persistent information, this directory is not typically version-controlled. There might be different tracking directories that represent different environments, such as `dev`, `prod`, etc.
-  - `--out-dir`: directory to DDL execution logs
-
-  ### Companion tools
-
-  Besides the main tool (`m4db`), the following tools are also available:
-
-  - `m4db-refs`: show or manage object dependency hierarchy
-  - `m4db-gc`: garbage collect outdated, orphaned files
-  - `m4db-dbclean`: allows cleaning up outdated database objects by generating `DROP` statements. Note: only available for some databases
-  - `m4db-cache`: allows pre-computing cryptographic hash for large repositories
-
-  ## Storing DDLs
-  - DDLs are stored as plain text in single-level deep folders.
-  - Folder names are used to infer schema names, and file names are used to infer object names. File and folder names are always in lower-case, but converted to upper-case to derive schema and object names
-  - File names consist of a base name and extension.
-    - Base name must match the object name (except filename must be all lower-case).
-    - File extension must be either `.sql` or `.py`
-    - File names that start with `.` (period) are ignored, and so are any `.py` files that start with `_`.
-  - Files that have a `.sql` extension must contain one or more valid SQL statements.
-  - Files that have a `.py` extension must be a top-level Python script and must contain a function named `sql` returning one or more SQL statements as strings. The following are the two valid function signatures.
-
-    ```py
-    def sql(name: str, replace: bool) -> str | Iterable[str]:
-        """Dynamically build and return SQL statement(s)
-
-       Args:
-       name: name of the object being created (or replaced). Note: name is qualified with the schema name
-       replace: true if m4db is running in replace mode, that is, --replace option was specified at run-time
-
-       Returns:
-       A single SQL statement as `str`; or multiple SQL statements as `Iterable[str]`
-        """
-    ```
-    ```py
-    def sql(session, name: str, replace: bool) -> str | Iterable[str]:
-        """Dynamically build and return SQL statement(s)
-
-       Args:
-       session: an active database session (must not be closed)
-       name: name of the object being created (or replaced). note: name is qualified with the schema name
-       replace: true if m4db is running in replace mode, that is, --replace option was specified at run-time
-
-       Returns:
-       A single SQL statement as `str`; or multiple SQL statements as `Iterable[str]`
-        """
-    ```
-
-  ## Limitations
-  - only manages schema-level objects (does not manage databases, schemas, or permissions)
-  - does not manage cross-database objects
-  - object dependency management, depending on the database support, is semi-automatic
-  - change detection is based on the file content
-
-  ## Technical details
-  - unlike the traditional `make` utility, *make4db* relies on the cryptographic hash to detect changes.
-  - *make4db* is database agnostic and requires separate *database provider module* to function
-  - *make4db* relies on object references (for example, references of a view being other tables/views) to determine what objects need to be (re)built
-    - object references are stored along with the database scripts in a hidden folder (`.m4db` in the project-level folder)
-    - `m4db-refs` is a helper tool that can, for selected databases, automatically generate object references
+- Change detection uses the [BLAKE2b](https://www.blake2.net/) cryptographic hash of the DDL file content plus a salt derived from the tracking state of dependencies. This means an object is rebuilt whenever either its own DDL or any upstream DDL changes.
+- `make4db` is database-agnostic and requires a separate database-provider plugin to run.
+- Object references (dependencies) are stored in `.m4db/` inside the DDL directory and are intended to be version-controlled alongside the DDL files.

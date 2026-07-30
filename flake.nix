@@ -123,6 +123,7 @@
               pyPkgs.sqlparse
               pyPkgs.make4db-api
               pyPkgs.yappt
+              pyPkgs.jinja2
             ];
           };
 

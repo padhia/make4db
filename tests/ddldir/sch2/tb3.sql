@@ -1,4 +1,6 @@
-create table sch2.tb3 (
-   c1 varchar(10) not null,
-   c4 varchar(20)
+create or replace table {{ this }} (
+   obj_database varchar(255) not null default '{{ env_var.DBNAME }}',
+   obj_schema   varchar(255) not null default '{{ this.sch }}',
+   obj_name     varchar(255) not null default '{{ this.name }}',
+   c4           varchar(20)
 );
